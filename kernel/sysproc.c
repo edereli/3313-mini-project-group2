@@ -108,6 +108,15 @@ sys_uptime(void)
   return xticks;
 }
 
+uint64
+sys_getcputime(void)
+{
+  int pid;
+
+  argint(0, &pid);
+  return getcputime(pid);
+}
+
 // Adding the syscall handler wrapper (step 3)
 // the wrapper fetch's the user argument (a short string like "-o" or "-l")
 // and then calls the kernel implementation kps(...)

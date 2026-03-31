@@ -92,6 +92,7 @@ struct proc {
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
   int waiting_tick;	           // Lab 4: Adding waiting tick - stores how long the process has been waiting so kernel can track waiting time for each child process
+  int cpu_ticks;               // Timer ticks spent running on the CPU
 // ^ Counter so every process can store its own waiting time
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process

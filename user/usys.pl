@@ -43,3 +43,4 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("kps"); # Adding entry (step 4) - this auto-generates the user-space system (ie. loading correct registers + calling ecall) when you compile the OS
+entry("getcputime");

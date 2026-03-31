@@ -125,6 +125,7 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->waiting_tick = 0; // Initialized waiting_tick = 0 (new process, 0 waiting time)
+  p->cpu_ticks = 0; // New processes start with no recorded CPU time.
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -169,6 +170,7 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->cpu_ticks = 0;
   p->state = UNUSED;
 }
 
@@ -702,6 +704,24 @@ killed(struct proc *p)
   k = p->killed;
   release(&p->lock);
   return k;
+}
+
+int
+getcputime(int pid)
+{
+  struct proc *p;
+  int cpu_ticks;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->state != UNUSED && p->pid == pid){
+      cpu_ticks = p->cpu_ticks;
+      release(&p->lock);
+      return cpu_ticks;
+    }
+    release(&p->lock);
+  }
+  return -1;
 }
 
 // Copy to either a user address, or kernel address,

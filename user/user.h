@@ -25,6 +25,7 @@ char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
 int kps(char []); // Adding this for for step 2
+int getcputime(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

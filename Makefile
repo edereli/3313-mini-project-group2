@@ -151,6 +151,7 @@ UPROGS=\
 	$U/_bad_pipe\
 	$U/_schedtest\
 	$U/_good_pipe\
+	$U/_cputest\
 
 fs.img: mkfs/mkfs README $(UPROGS) $(TXTFILES)
 	mkfs/mkfs fs.img README $(UPROGS) $(TXTFILES)
