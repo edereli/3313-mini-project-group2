@@ -7,6 +7,13 @@
 
 struct stat;
 
+// Idle CPU stats returned by getidlestats()
+struct idlestats {
+  uint idle_entries;         // times CPUs entered idle
+  uint total_idle_ticks;     // total time spent idle
+  uint currently_idle_cpus;  // CPUs idle right now
+};
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -31,6 +38,8 @@ int pause(int);
 int uptime(void);
 int kps(char []); // Adding this for for step 2
 int getcputime(int);
+int getidlestats(struct idlestats *stats);  // gets idle CPU stats
+
 // User-visible scheduling mode syscalls.
 int setschedmode(int);
 int getschedmode(void);
