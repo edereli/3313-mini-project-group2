@@ -107,7 +107,7 @@ allocpid()
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
 static struct proc*
-allocproc(void)
+allocproc(void) // Lab 4: runs every time a process is created (ensures every new process starts with no waiting time)
 {
   struct proc *p;
 
@@ -124,6 +124,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->waiting_tick = 0; // Initialized waiting_tick = 0 (new process, 0 waiting time)
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -388,6 +389,19 @@ kwait(uint64 addr)
         if(pp->state == ZOMBIE){
           // Found one.
           pid = pp->pid;
+	  
+          // LAB 4 - added this:
+          // This is where the waiting_tick gets printed in kwait()
+          // when the child becomes ZOMBIE 
+          // it prints once per child, right before freeproc() removes it
+
+          // Then when each child exists, the kernel prints its total waiting time
+          // so i can compute average
+          // Print schedtest child waiting stats once, right before freeing it
+	        if(pp->parent != 0 && strncmp(pp->parent->name, "schedtest", 16) == 0){
+  	        printf("schedstats: pid=%d waiting_tick=%d\n", pp->pid, pp->waiting_tick);
+	        }
+
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
                                   sizeof(pp->xstate)) < 0) {
             release(&pp->lock);
@@ -421,46 +435,107 @@ kwait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+// Lab 4:
+// --> In scheduler(), once I know which process I'm running, 
+//     I treat one scheduler pass as 1 'tick' of waiting
+//     So every other RUNNABLE process incrememnts waiting_tick by 1
 void
-scheduler(void)
+scheduler(void) // runs every time the CPU needs to choose a process
 {
-  struct proc *p;
   struct cpu *c = mycpu();
-
   c->proc = 0;
+
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
     intr_on();
-    intr_off();
 
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
+    struct proc *p;
+    struct proc *chosen = 0; // choose process and store it here
+    int chosen_pid = 0;
+
+
+    // LAB 4:
+    // Scans the process table --> looks for processes that are RUNNABLE + children of schedtest
+    // Among them, pick the one w/ smallest PID ( = earilier creation --> simulates FCFS)
+    // If none exist, fall back to normal scheduling
+    // After choosing the process to run, I increment waiting_tick for every other runnable process
+    // waiting tick = counts how many scheduler cycles a process spent RUNNABLE but not running
+    // This models how long each process waits while others run
+
+    // 1) Find smallest PID among RUNNABLE schedtest children (no locks held across iterations)
+    for(p = proc; p < &proc[NPROC]; p++){
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+      // LAB 4
+      // If there's runnable children whose parent program = schedtest
+      // I always pick the one with the smallest PID
+      // That simulates FCFS b/c smallest PID = earliest created child
+      if(p->state == RUNNABLE && // Lab 4 - Changed this 
+         p->parent != 0 &&
+         strncmp(p->parent->name, "schedtest", 16) == 0){
+        if(chosen == 0 || p->pid < chosen_pid){
+          chosen = p;
+          chosen_pid = p->pid;
+        }
       }
       release(&p->lock);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
+
+    // 2) Fallback: first RUNNABLE if no schedtest child
+    if(chosen == 0){
+      for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == RUNNABLE){
+          chosen = p;
+          chosen_pid = p->pid;
+          release(&p->lock);
+          break;
+        }
+        release(&p->lock);
+      }
+    }
+
+    // 3) If nothing runnable, sleep CPU
+    if(chosen == 0){
+      intr_off();
       asm volatile("wfi");
+      continue;
+    }
+
+    // Lab 4: chooses a process (chosen_pid), loops over all processes 
+    // if it's RUNNABLE and not chosen --> waiting tik ++
+    // 4) STEP 2: Increment waiting_tick for every other RUNNABLE process
+    // STEP 2: after selecting the process to run, I loop over the process table + increment waiting tik
+    //        for every other RUNNABLE process
+    //        each scheduler iteration counts as 1 unit of waiting
+    //        Basically: every time the scheduler runs, I +1 waiting tik
+    //                   to every process that's ready but didnt get the CPU
+    // After choosing, increments waiting tick for every other RUNNABLE process that wasnt chosen
+    for(p = proc; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->state == RUNNABLE && p->pid != chosen_pid){// increments waiting tik only if proces is runnable AND not chosen one
+        p->waiting_tick++;
+      }
+      release(&p->lock);
+    }
+
+    // 5) Now actually run the chosen process: lock it and confirm runnable
+    for(p = proc; p < &proc[NPROC]; p++){
+      if(p->pid == chosen_pid){
+        acquire(&p->lock);
+        if(p->state == RUNNABLE){
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context); // runs the chosen process
+          c->proc = 0;
+        }
+        release(&p->lock);
+        break;
+      }
     }
   }
 }
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
@@ -657,6 +732,86 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
     memmove(dst, (char*)src, len);
     return 0;
   }
+}
+
+// Lab 2, Step 6: Implementing the Kernel Logic (for system call)
+// this function prints information about processes depending on the argument
+//
+// proc.c = kernel logic
+// 	this function runs in the kernel
+//	loops through the process table and prints process information
+//	depending on whether the argument is -o or -l
+// 	  LOOP:	the loop goes through the kernel's process table
+//		which is an array of all processes (proc[])
+//		for each process, it checks if the process is active (process that isnt UNUSED) 
+//		if active => prints info about that process depending on the argument
+
+int
+kps(char *arguments)
+{
+  // pointer used to iterate over the global process table
+  struct proc *p;
+
+  // check if the argument passed to kps is "-o"
+  // "-o" means: print only process names
+  if(strncmp(arguments, "-o", 2) == 0){
+
+    // iterate over the global process table 'proc'
+    for(p = proc; p < &proc[NPROC]; p++){
+
+      // only consider valid (active) processes
+      if(p->state != UNUSED){
+
+        // print the process name, tabbed horizontally in 1 row
+        printf("%s\t", p->name);
+      }
+    }
+	printf("\n"); // new line after printing all names
+  }
+
+  // otherwise, check whether the argument value is "-l"
+  // "-l" means: print process ID (PID), state, and process name
+  else if(strncmp(arguments, "-l", 2) == 0){
+    
+    // Header (matches sample output format)
+    printf("PID   STATE        NAME\n");
+    printf("-----------------------------\n");
+
+    // iterate over the global process table 'proc'
+    for(p = proc; p < &proc[NPROC]; p++){
+      // only consider valid (active) processes
+      if(p->state != UNUSED){
+      
+      // convert process state enum to a readable string
+      char *s;
+      switch(p->state){
+        case UNUSED:   s = "UNUSED"; break;
+        case USED:     s = "USED"; break;
+        case SLEEPING: s = "SLEEPING"; break;
+        case RUNNABLE: s = "RUNNABLE"; break;
+        case RUNNING:  s = "RUNNING"; break;
+        case ZOMBIE:   s = "ZOMBIE"; break;
+        default:       s = "???"; break;
+      }
+      printf("%d   %s", p->pid, s);
+	// adding extra space so the names line up (for formatting)
+      if(strlen(s) < 8)
+      	printf("        ");
+      else
+      	printf("    ");
+
+      printf("%s\n", p->name);
+      }
+    }
+  }
+
+  // Handle invalid or missing arguments
+  else {
+    // print usage message if argument is not "-o" or "-l"
+    printf("Usage: ps [-o | -l]\n");
+  }
+  // Return 0 to indicate successful execution
+  return 0;
 }
 
 // Print a process listing to console.  For debugging.

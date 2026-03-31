@@ -107,3 +107,23 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// Adding the syscall handler wrapper (step 3)
+// the wrapper fetch's the user argument (a short string like "-o" or "-l")
+// and then calls the kernel implementation kps(...)
+// 0 = 1st system call argument (only 1 in our case)
+// buffer = char array you provide (size 4 + null terminator)
+// nbytes = max # of bytes to copy 
+// if argstr() fails, return error; otherwise, call kps(buf) + return result
+uint64
+sys_kps(void)
+{
+  char buf[4]; // enough for "-o" or "-l" plus '\0'
+  if(argstr(0, buf, sizeof(buf)) < 0)
+    return -1;
+  return kps(buf);
+}
+// this is the system call wrapper
+//	the function sys_kps() connects user space to the kernel
+//	it gets the argument from the user program and calls the kernel function
+// in between man to talk to the kernel

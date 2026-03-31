@@ -24,6 +24,7 @@ int getpid(void);
 char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
+int kps(char []); // Adding this for for step 2
 
 // ulib.c
 int stat(const char*, struct stat*);

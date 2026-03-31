@@ -1,5 +1,6 @@
 K=kernel
 U=user
+TXTFILES=$(wildcard $U/*.txt)
 
 OBJS = \
   $K/entry.o \
@@ -145,9 +146,14 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
+	$U/_hello_world\
+	$U/_ps\
+	$U/_bad_pipe\
+	$U/_schedtest\
+	$U/_good_pipe\
 
-fs.img: mkfs/mkfs README $(UPROGS)
-	mkfs/mkfs fs.img README $(UPROGS)
+fs.img: mkfs/mkfs README $(UPROGS) $(TXTFILES)
+	mkfs/mkfs fs.img README $(UPROGS) $(TXTFILES)
 
 -include kernel/*.d user/*.d
 
