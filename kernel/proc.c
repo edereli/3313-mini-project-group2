@@ -130,17 +130,18 @@ procinit(void)
   initlock(&wait_lock, "wait_lock");
   initlock(&idlelock, "idlelock");
 
+  // clear all idle tracking values at boot
   for(i = 0; i < NCPU; i++){
-      idle_entries[i] = 0;
-      idle_start_ticks[i] = 0;
-      idle_total_ticks[i] = 0;
-      idle_active[i] = 0;
+    idle_entries[i] = 0;
+    idle_start_ticks[i] = 0;
+    idle_total_ticks[i] = 0;
+    idle_active[i] = 0;
   }
 
   for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
-      p->state = UNUSED;
-      p->kstack = KSTACK((int) (p - proc));
+    initlock(&p->lock, "proc");
+    p->state = UNUSED;
+    p->kstack = KSTACK((int) (p - proc));
   }
 }
 
@@ -529,36 +530,28 @@ kwait(uint64 addr)
 //     I treat one scheduler pass as 1 'tick' of waiting
 //     So every other RUNNABLE process incrememnts waiting_tick by 1
 void
-scheduler(void) // runs every time the CPU needs to choose a process
+scheduler(void)
 {
+  struct proc *p;
+  struct proc *chosen;
   struct cpu *c = mycpu();
-  c->proc = 0;
+  int chosen_pid;
 
+  c->proc = 0;
   for(;;){
     intr_on();
 
-    struct proc *p;
-    struct proc *chosen = 0; // choose process and store it here
-    int chosen_pid = 0;
+    int id = cpuid();
+    chosen = 0;
+    chosen_pid = -1;
 
-
-    // LAB 4:
-    // Scans the process table --> looks for processes that are RUNNABLE + children of schedtest
-    // Among them, pick the one w/ smallest PID ( = earilier creation --> simulates FCFS)
-    // If none exist, fall back to normal scheduling
-    // After choosing the process to run, I increment waiting_tick for every other runnable process
-    // waiting tick = counts how many scheduler cycles a process spent RUNNABLE but not running
-    // This models how long each process waits while others run
-
-    // 1) Find smallest PID among RUNNABLE schedtest children (no locks held across iterations)
+    // 1) Find smallest PID among RUNNABLE schedtest children
     for(p = proc; p < &proc[NPROC]; p++){
       acquire(&p->lock);
 
-      // LAB 4
-      // If there's runnable children whose parent program = schedtest
-      // I always pick the one with the smallest PID
-      // That simulates FCFS b/c smallest PID = earliest created child
-      if(p->state == RUNNABLE && // Lab 4 - Changed this 
+      // If there are runnable children whose parent is schedtest,
+      // pick the one with the smallest PID
+      if(p->state == RUNNABLE &&
          p->parent != 0 &&
          strncmp(p->parent->name, "schedtest", 16) == 0){
         if(chosen == 0 || p->pid < chosen_pid){
@@ -566,10 +559,11 @@ scheduler(void) // runs every time the CPU needs to choose a process
           chosen_pid = p->pid;
         }
       }
+
       release(&p->lock);
     }
 
-    // 2) Fallback: first RUNNABLE if no schedtest child
+    // 2) Fallback: pick the first RUNNABLE process if no schedtest child was found
     if(chosen == 0){
       for(p = proc; p < &proc[NPROC]; p++){
         acquire(&p->lock);
@@ -583,38 +577,35 @@ scheduler(void) // runs every time the CPU needs to choose a process
       }
     }
 
-    // 3) If nothing runnable, sleep CPU
+    // 3) If nothing is runnable, mark CPU idle and wait
     if(chosen == 0){
+      idle_begin(id);
       intr_off();
       asm volatile("wfi");
       continue;
     }
 
-    // Lab 4: chooses a process (chosen_pid), loops over all processes 
-    // if it's RUNNABLE and not chosen --> waiting tik ++
-    // 4) STEP 2: Increment waiting_tick for every other RUNNABLE process
-    // STEP 2: after selecting the process to run, I loop over the process table + increment waiting tik
-    //        for every other RUNNABLE process
-    //        each scheduler iteration counts as 1 unit of waiting
-    //        Basically: every time the scheduler runs, I +1 waiting tik
-    //                   to every process that's ready but didnt get the CPU
-    // After choosing, increments waiting tick for every other RUNNABLE process that wasnt chosen
+    // 4) Increment waiting_tick for every other RUNNABLE process
     for(p = proc; p < &proc[NPROC]; p++){
       acquire(&p->lock);
-      if(p->state == RUNNABLE && p->pid != chosen_pid){// increments waiting tik only if proces is runnable AND not chosen one
+      if(p->state == RUNNABLE && p->pid != chosen_pid){
         p->waiting_tick++;
       }
       release(&p->lock);
     }
 
-    // 5) Now actually run the chosen process: lock it and confirm runnable
+    // 5) Run the chosen process
     for(p = proc; p < &proc[NPROC]; p++){
       if(p->pid == chosen_pid){
         acquire(&p->lock);
         if(p->state == RUNNABLE){
+
+          // CPU is no longer idle because work is about to run
+          idle_end(id);
+
           p->state = RUNNING;
           c->proc = p;
-          swtch(&c->context, &p->context); // runs the chosen process
+          swtch(&c->context, &p->context);
           c->proc = 0;
         }
         release(&p->lock);
