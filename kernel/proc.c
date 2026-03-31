@@ -536,6 +536,7 @@ scheduler(void)
   struct proc *chosen;
   struct cpu *c = mycpu();
   int chosen_pid;
+  int mode;
 
   c->proc = 0;
   for(;;){
@@ -544,40 +545,81 @@ scheduler(void)
     int id = cpuid();
     chosen = 0;
     chosen_pid = -1;
+    mode = getschedmode();
 
-    // 1) Find smallest PID among RUNNABLE schedtest children
-    for(p = proc; p < &proc[NPROC]; p++){
-      acquire(&p->lock);
+    // ECO mode:
+    // prefer the RUNNABLE process with the smallest cpu_ticks
+    if(mode == ECO){
+      int best_ticks = -1;
 
-      // If there are runnable children whose parent is schedtest,
-      // pick the one with the smallest PID
-      if(p->state == RUNNABLE &&
-         p->parent != 0 &&
-         strncmp(p->parent->name, "schedtest", 16) == 0){
-        if(chosen == 0 || p->pid < chosen_pid){
-          chosen = p;
-          chosen_pid = p->pid;
-        }
-      }
-
-      release(&p->lock);
-    }
-
-    // 2) Fallback: pick the first RUNNABLE process if no schedtest child was found
-    if(chosen == 0){
       for(p = proc; p < &proc[NPROC]; p++){
         acquire(&p->lock);
         if(p->state == RUNNABLE){
-          chosen = p;
-          chosen_pid = p->pid;
-          release(&p->lock);
-          break;
+          if(chosen == 0 || p->cpu_ticks < best_ticks){
+            chosen = p;
+            chosen_pid = p->pid;
+            best_ticks = p->cpu_ticks;
+          }
         }
         release(&p->lock);
       }
     }
 
-    // 3) If nothing is runnable, mark CPU idle and wait
+    // BALANCED mode:
+    // keep the current behavior
+    else if(mode == BALANCED){
+      // 1) Find smallest PID among RUNNABLE schedtest children
+      for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+
+        // If there are runnable children whose parent is schedtest,
+        // pick the one with the smallest PID
+        if(p->state == RUNNABLE &&
+           p->parent != 0 &&
+           strncmp(p->parent->name, "schedtest", 16) == 0){
+          if(chosen == 0 || p->pid < chosen_pid){
+            chosen = p;
+            chosen_pid = p->pid;
+          }
+        }
+
+        release(&p->lock);
+      }
+
+      // 2) Fallback: pick the first RUNNABLE process if no schedtest child was found
+      if(chosen == 0){
+        for(p = proc; p < &proc[NPROC]; p++){
+          acquire(&p->lock);
+          if(p->state == RUNNABLE){
+            chosen = p;
+            chosen_pid = p->pid;
+            release(&p->lock);
+            break;
+          }
+          release(&p->lock);
+        }
+      }
+    }
+
+    // PERF mode:
+    // prefer the RUNNABLE process with the largest waiting_tick
+    else if(mode == PERF){
+      int best_wait = -1;
+
+      for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == RUNNABLE){
+          if(chosen == 0 || p->waiting_tick > best_wait){
+            chosen = p;
+            chosen_pid = p->pid;
+            best_wait = p->waiting_tick;
+          }
+        }
+        release(&p->lock);
+      }
+    }
+
+    // If nothing is runnable, mark CPU idle and wait
     if(chosen == 0){
       idle_begin(id);
       intr_off();
@@ -585,7 +627,7 @@ scheduler(void)
       continue;
     }
 
-    // 4) Increment waiting_tick for every other RUNNABLE process
+    // Increment waiting_tick for every other RUNNABLE process
     for(p = proc; p < &proc[NPROC]; p++){
       acquire(&p->lock);
       if(p->state == RUNNABLE && p->pid != chosen_pid){
@@ -594,7 +636,7 @@ scheduler(void)
       release(&p->lock);
     }
 
-    // 5) Run the chosen process
+    // Run the chosen process
     for(p = proc; p < &proc[NPROC]; p++){
       if(p->pid == chosen_pid){
         acquire(&p->lock);
