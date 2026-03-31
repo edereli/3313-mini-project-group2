@@ -5,12 +5,22 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "eco.h"
+
+extern uint ticks;
+extern struct spinlock tickslock;
 
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
 struct proc *initproc;
+
+struct spinlock idlelock;
+uint idle_entries[NCPU];
+uint idle_start_ticks[NCPU];
+uint idle_total_ticks[NCPU];
+int idle_active[NCPU];
 
 int nextpid = 1;
 struct spinlock pid_lock;
@@ -46,16 +56,87 @@ proc_mapstacks(pagetable_t kpgtbl)
     kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   }
 }
+static void
+idle_begin(int id)
+{
+  uint now;
+
+  acquire(&tickslock);
+  now = ticks;
+  release(&tickslock);
+
+  acquire(&idlelock);
+  if(idle_active[id] == 0){
+    idle_active[id] = 1;
+    idle_start_ticks[id] = now;
+    idle_entries[id]++;
+  }
+  release(&idlelock);
+}
+
+static void
+idle_end(int id)
+{
+  uint now;
+
+  acquire(&tickslock);
+  now = ticks;
+  release(&tickslock);
+
+  acquire(&idlelock);
+  if(idle_active[id]){
+    idle_total_ticks[id] += now - idle_start_ticks[id];
+    idle_active[id] = 0;
+  }
+  release(&idlelock);
+}
+
+void
+get_idle_stats(uint *entries, uint *total_ticks, uint *current_idle_cpus)
+{
+  uint now;
+  int i;
+
+  *entries = 0;
+  *total_ticks = 0;
+  *current_idle_cpus = 0;
+
+  acquire(&tickslock);
+  now = ticks;
+  release(&tickslock);
+
+  acquire(&idlelock);
+  for(i = 0; i < NCPU; i++){
+    *entries += idle_entries[i];
+    *total_ticks += idle_total_ticks[i];
+
+    if(idle_active[i]){
+      *current_idle_cpus += 1;
+      *total_ticks += now - idle_start_ticks[i];
+    }
+  }
+  release(&idlelock);
+}
 
 // initialize the proc table.
 void
 procinit(void)
 {
   struct proc *p;
+  int i;
   
   initlock(&pid_lock, "nextpid");
   initlock(&schedmode_lock, "schedmode");
   initlock(&wait_lock, "wait_lock");
+  initlock(&idlelock, "idlelock");
+
+  for(i = 0; i < NCPU; i++){
+      idle_entries[i] = 0;
+      idle_start_ticks[i] = 0;
+      idle_total_ticks[i] = 0;
+      idle_active[i] = 0;
+  }
+
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       p->state = UNUSED;
