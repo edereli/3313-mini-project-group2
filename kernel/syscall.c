@@ -103,6 +103,7 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_kps(void); // Declaring the handler (step 5)
 extern uint64 sys_getcputime(void);
+// Handlers for the scheduling mode syscalls.
 extern uint64 sys_setschedmode(void);
 extern uint64 sys_getschedmode(void);
 
@@ -132,6 +133,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_kps]     sys_kps, // Adding the mapping in the system call table (step 5)
 [SYS_getcputime] sys_getcputime,
+// Wire the new mode syscalls into the syscall table.
 [SYS_setschedmode] sys_setschedmode,
 [SYS_getschedmode] sys_getschedmode,
 };

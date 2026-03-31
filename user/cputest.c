@@ -7,6 +7,7 @@ burn_cpu(void)
 {
   volatile int x = 0;
 
+  // Busy work so the child spends noticeable time on the CPU.
   for(int i = 0; i < 50000000; i++){
     x += i % 7;
   }

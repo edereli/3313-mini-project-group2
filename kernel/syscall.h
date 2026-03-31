@@ -22,6 +22,7 @@
 #define SYS_close  21
 #define SYS_kps    22
 #define SYS_getcputime 23
+// Syscalls for the ECO/BALANCED/PERF mode controls.
 #define SYS_setschedmode 24
 #define SYS_getschedmode 25
 

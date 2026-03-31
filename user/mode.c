@@ -5,6 +5,7 @@
 static char *
 modename(int mode)
 {
+  // Convert the numeric mode into a readable label.
   switch(mode){
   case ECO:
     return "ECO";
@@ -23,6 +24,7 @@ main(int argc, char *argv[])
   int mode;
 
   if(argc == 1){
+    // No argument: just print the current mode.
     mode = getschedmode();
     printf("current mode: %s\n", modename(mode));
     exit(0);
@@ -40,6 +42,7 @@ main(int argc, char *argv[])
   } else if(strcmp(argv[1], "perf") == 0){
     mode = PERF;
   } else {
+    // Reject anything other than the three supported names.
     fprintf(2, "mode: invalid mode '%s'\n", argv[1]);
     fprintf(2, "usage: mode [eco|balanced|perf]\n");
     exit(1);
@@ -50,6 +53,7 @@ main(int argc, char *argv[])
     exit(1);
   }
 
+  // Print the mode after a successful change.
   printf("mode set to %s\n", modename(mode));
   exit(0);
 }

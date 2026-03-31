@@ -113,6 +113,7 @@ sys_getcputime(void)
 {
   int pid;
 
+  // Fetch the pid from user space and return that process's CPU ticks.
   argint(0, &pid);
   return getcputime(pid);
 }
@@ -122,6 +123,7 @@ sys_setschedmode(void)
 {
   int mode;
 
+  // Fetch the requested mode and validate/set it in the kernel.
   argint(0, &mode);
   return setschedmode(mode);
 }
@@ -129,6 +131,7 @@ sys_setschedmode(void)
 uint64
 sys_getschedmode(void)
 {
+  // Return the current global scheduling mode.
   return getschedmode();
 }
 

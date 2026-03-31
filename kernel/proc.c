@@ -14,7 +14,9 @@ struct proc *initproc;
 
 int nextpid = 1;
 struct spinlock pid_lock;
+// Protects reads/writes of the global scheduling mode.
 struct spinlock schedmode_lock;
+// Start xv6 in BALANCED mode by default.
 int sched_mode = BALANCED;
 
 extern void forkret(void);
@@ -715,6 +717,7 @@ getcputime(int pid)
   struct proc *p;
   int cpu_ticks;
 
+  // Scan the process table and return the matching process's CPU ticks.
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
     if(p->state != UNUSED && p->pid == pid){
@@ -730,9 +733,11 @@ getcputime(int pid)
 int
 setschedmode(int mode)
 {
+  // Reject anything other than ECO, BALANCED, or PERF.
   if(mode != ECO && mode != BALANCED && mode != PERF)
     return -1;
 
+  // Store the selected mode so the scheduler can use it later.
   acquire(&schedmode_lock);
   sched_mode = mode;
   release(&schedmode_lock);
@@ -744,6 +749,7 @@ getschedmode(void)
 {
   int mode;
 
+  // Return the current global scheduling mode.
   acquire(&schedmode_lock);
   mode = sched_mode;
   release(&schedmode_lock);

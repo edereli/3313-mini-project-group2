@@ -1,5 +1,6 @@
 #define SBRK_ERROR ((char *)-1)
 
+// User-space copies of the scheduling mode values.
 #define ECO 0
 #define BALANCED 1
 #define PERF 2
@@ -30,6 +31,7 @@ int pause(int);
 int uptime(void);
 int kps(char []); // Adding this for for step 2
 int getcputime(int);
+// User-visible scheduling mode syscalls.
 int setschedmode(int);
 int getschedmode(void);
 
