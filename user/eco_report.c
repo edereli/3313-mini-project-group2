@@ -1,6 +1,5 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
-#include "kernel/eco.h"
 #include "user/user.h"
 
 // Converts the current scheduler mode to readable text

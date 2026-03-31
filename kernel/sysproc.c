@@ -143,15 +143,14 @@ sys_getidlestats(void)
   uint64 uaddr;
   struct idlestats stats;
 
-  // get the user-space address passed into the syscall
-  if(argaddr(0, &uaddr) < 0)
-    return -1;
+  // In this xv6 version, argaddr() does not return a value.
+  argaddr(0, &uaddr);
 
-  // fill the stats struct from kernel idle data
+  // Fill the stats struct from kernel idle data
   get_idle_stats(&stats.idle_entries, &stats.total_idle_ticks,
                  &stats.currently_idle_cpus);
 
-  // copy the struct back to user space
+  // Copy the struct back to user space
   if(copyout(myproc()->pagetable, uaddr, (char *)&stats, sizeof(stats)) < 0)
     return -1;
 
