@@ -14,6 +14,8 @@ struct proc *initproc;
 
 int nextpid = 1;
 struct spinlock pid_lock;
+struct spinlock schedmode_lock;
+int sched_mode = BALANCED;
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
@@ -50,6 +52,7 @@ procinit(void)
   struct proc *p;
   
   initlock(&pid_lock, "nextpid");
+  initlock(&schedmode_lock, "schedmode");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
@@ -722,6 +725,29 @@ getcputime(int pid)
     release(&p->lock);
   }
   return -1;
+}
+
+int
+setschedmode(int mode)
+{
+  if(mode != ECO && mode != BALANCED && mode != PERF)
+    return -1;
+
+  acquire(&schedmode_lock);
+  sched_mode = mode;
+  release(&schedmode_lock);
+  return 0;
+}
+
+int
+getschedmode(void)
+{
+  int mode;
+
+  acquire(&schedmode_lock);
+  mode = sched_mode;
+  release(&schedmode_lock);
+  return mode;
 }
 
 // Copy to either a user address, or kernel address,

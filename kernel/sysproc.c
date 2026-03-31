@@ -117,6 +117,21 @@ sys_getcputime(void)
   return getcputime(pid);
 }
 
+uint64
+sys_setschedmode(void)
+{
+  int mode;
+
+  argint(0, &mode);
+  return setschedmode(mode);
+}
+
+uint64
+sys_getschedmode(void)
+{
+  return getschedmode();
+}
+
 // Adding the syscall handler wrapper (step 3)
 // the wrapper fetch's the user argument (a short string like "-o" or "-l")
 // and then calls the kernel implementation kps(...)
