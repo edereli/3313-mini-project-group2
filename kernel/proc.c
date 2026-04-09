@@ -258,6 +258,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->cpu_ticks = 0;
+  p->waiting_tick = 0;
   p->state = UNUSED;
 }
 
@@ -644,6 +645,9 @@ scheduler(void)
 
           // CPU is no longer idle because work is about to run
           idle_end(id);
+
+          // This process got the CPU, so its waiting time resets
+          p->waiting_tick = 0;
 
           p->state = RUNNING;
           c->proc = p;
