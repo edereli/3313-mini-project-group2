@@ -47,3 +47,4 @@ entry("getcputime");
 # Stubs for the new scheduling mode syscalls.
 entry("setschedmode");
 entry("getschedmode");
+entry("getidlestats");

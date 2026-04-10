@@ -6,6 +6,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "eco.h"
 
 uint64
 sys_exit(void)
@@ -133,6 +134,27 @@ sys_getschedmode(void)
 {
   // Return the current global scheduling mode.
   return getschedmode();
+}
+
+
+uint64
+sys_getidlestats(void)
+{
+  uint64 uaddr;
+  struct idlestats stats;
+
+  // In this xv6 version, argaddr() does not return a value.
+  argaddr(0, &uaddr);
+
+  // Fill the stats struct from kernel idle data
+  get_idle_stats(&stats.idle_entries, &stats.total_idle_ticks,
+                 &stats.currently_idle_cpus);
+
+  // Copy the struct back to user space
+  if(copyout(myproc()->pagetable, uaddr, (char *)&stats, sizeof(stats)) < 0)
+    return -1;
+
+  return 0;
 }
 
 // Adding the syscall handler wrapper (step 3)

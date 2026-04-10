@@ -102,6 +102,8 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 int             getcputime(int);
+void get_idle_stats(uint *entries, uint *total_ticks, uint *current_idle_cpus);
+
 // Scheduling mode helpers used by the new mode control syscalls.
 int             setschedmode(int);
 int             getschedmode(void);

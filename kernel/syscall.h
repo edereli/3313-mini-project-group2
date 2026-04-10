@@ -25,4 +25,5 @@
 // Syscalls for the ECO/BALANCED/PERF mode controls.
 #define SYS_setschedmode 24
 #define SYS_getschedmode 25
+#define SYS_getidlestats 26
 

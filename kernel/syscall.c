@@ -106,6 +106,7 @@ extern uint64 sys_getcputime(void);
 // Handlers for the scheduling mode syscalls.
 extern uint64 sys_setschedmode(void);
 extern uint64 sys_getschedmode(void);
+extern uint64 sys_getidlestats(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -136,6 +137,7 @@ static uint64 (*syscalls[])(void) = {
 // Wire the new mode syscalls into the syscall table.
 [SYS_setschedmode] sys_setschedmode,
 [SYS_getschedmode] sys_getschedmode,
+[SYS_getidlestats] sys_getidlestats,
 };
 
 void
